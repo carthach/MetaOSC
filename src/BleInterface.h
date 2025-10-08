@@ -1,3 +1,8 @@
+// Undefine LINUX macro that may be defined by JUCE to avoid conflict with SimpleBLE enum
+#ifdef LINUX
+#undef LINUX
+#endif
+
 #include "simpleble/SimpleBLE.h"
 
 #include <iostream>

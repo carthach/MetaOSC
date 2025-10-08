@@ -1,0 +1,117 @@
+name: Build MetaOSC
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          git \
+          pkg-config \
+          libbluetooth-dev \
+          libudev-dev \
+          libdbus-1-dev \
+          libx11-dev \
+          libxext-dev \
+          libxinerama-dev \
+          libxcursor-dev \
+          libxrandr-dev \
+          libxcomposite-dev \
+          libasound2-dev \
+          libfreetype6-dev \
+          libcurl4-openssl-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libjpeg-dev \
+          libpng-dev \
+          libwebp-dev \
+          libfontconfig1-dev
+          
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake
+        
+    - name: Install dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # Windows dependencies are handled by the runner environment
+        # CMake and Visual Studio are pre-installed
+        
+    - name: Configure CMake (Windows)
+      if: matrix.os == 'windows-latest'
+      run: cmake -B build -S . -DCMAKE_CXX_STANDARD=17
+      
+    - name: Configure CMake (Unix)
+      if: matrix.os != 'windows-latest'
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17
+          
+    - name: Build
+      run: |
+        cmake --build build --config Release --parallel
+        
+    - name: Test executable exists (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        Get-ChildItem -Path build/MetaOSC_artefacts/Release/ -Recurse
+        
+    - name: Test executable exists (macOS)
+      if: matrix.os == 'macos-latest'
+      shell: bash
+      run: |
+        ls -la build/MetaOSC_artefacts/Release/
+        
+    - name: Test executable exists (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        ls -la build/MetaOSC_artefacts/
+        
+    - name: Upload build artifacts (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: MetaOSC-linux
+        path: build/MetaOSC_artefacts/
+        retention-days: 30
+        
+    - name: Upload build artifacts (macOS)
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: MetaOSC-macos
+        path: build/MetaOSC_artefacts/Release/
+        retention-days: 30
+        
+    - name: Upload build artifacts (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: MetaOSC-windows
+        path: build/MetaOSC_artefacts/Release/
+        retention-days: 30
