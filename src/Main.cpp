@@ -10,7 +10,10 @@ class MetaOSCThread : public juce::Thread {
     BleInterface bleInterface;
     OwnedArray<MetaMotionController> controllers;
     std::vector<SimpleBLE::Peripheral> peripherals;
-    juce::OSCSender oscSender;
+    
+    std::array<int, 2> ports = {8000, 8001};
+    
+    OwnedArray<juce::OSCSender> oscSenders;
         
 public:
     MetaOSCThread() : juce::Thread("MetaOSC Thread")
@@ -31,9 +34,15 @@ public:
                 controller->setup();
                 controllers.add(controller);
             }
+                            
+            for(auto & port : ports)
+            {
                 
-            //Wait for the search to complete                                
-            oscSender.connect("127.0.0.1", 8000);
+                oscSenders.add(new OSCSender());
+                oscSenders.getLast()->connect("127.0.0.1", port);
+            }
+                
+            
             
             if(controllers.isEmpty()) {
                 juce::Logger::writeToLog("No MetaMotion controllers found!");
@@ -54,7 +63,8 @@ public:
                 {
                     auto address = String::formatted("/euler/%d", i);
                     juce::OSCMessage oscMessage(address, controller->outputEuler[0], controller->outputEuler[1], controller->outputEuler[2], controller->outputEuler[3]);
-                    oscSender.send(oscMessage);
+                    for(auto & oscSender : oscSenders)
+                        oscSender->send(oscMessage);
                     
                     juce::Logger::writeToLog(String::formatted("/euler/%d %f %f %f %f", i, controller->outputEuler[0], controller->outputEuler[1], controller->outputEuler[2], controller->outputEuler[3]));
                 }
@@ -62,19 +72,22 @@ public:
                 {
                     auto address = String::formatted("/acc/%d", i);
                     juce::OSCMessage oscMessage(address, controller->outputAcceleration[0], controller->outputAcceleration[1], controller->outputAcceleration[2]);
-                    oscSender.send(oscMessage);
+                    for(auto & oscSender : oscSenders)
+                        oscSender->send(oscMessage);
                 }
                 
                 {
                     auto address = String::formatted("/mag/%d", i);
                     juce::OSCMessage oscMessage(address, controller->outputMag[0], controller->outputMag[1], controller->outputGyro[2]);
-                    oscSender.send(oscMessage);
+                    for(auto & oscSender : oscSenders)
+                        oscSender->send(oscMessage);
                 }
                 
                 {
                     auto address = String::formatted("/gyro/%d", i);
                     juce::OSCMessage oscMessage(address, controller->outputGyro[0], controller->outputGyro[1], controller->outputGyro[2]);
-                    oscSender.send(oscMessage);
+                    for(auto & oscSender : oscSenders)
+                        oscSender->send(oscMessage);
                 }
             }
                 
@@ -88,7 +101,8 @@ public:
         
         try {
             // Disconnect OSC sender
-            oscSender.disconnect();
+            for(auto & oscSender : oscSenders)
+                oscSender->disconnect();
             
             // Disconnect all MetaMotion controllers
             for (int i = 0; i < controllers.size(); ++i)
