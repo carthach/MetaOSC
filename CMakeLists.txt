@@ -5,6 +5,9 @@ project(MetaOSC VERSION 1.0.0 LANGUAGES CXX)
 # Include FetchContent for downloading external dependencies
 include(FetchContent)
 
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
 # Fetch MetaWear SDK from GitHub
 FetchContent_Declare(
     MetaWearSDK
@@ -87,6 +90,8 @@ target_link_libraries(MetaOSC
         juce::juce_core
         juce::juce_events
         juce::juce_osc
+        juce::juce_data_structures
+        nlohmann_json::nlohmann_json
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags

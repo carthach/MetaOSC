@@ -2,6 +2,8 @@
 #include "MetaMotionController.h"
 #include <csignal>
 #include <atomic>
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 
 // Global flag for shutdown signal
 std::atomic<bool> g_shutdown_requested{false};
@@ -10,6 +12,21 @@ class MetaOSCThread : public juce::Thread {
     BleInterface bleInterface;
     OwnedArray<MetaMotionController> controllers;
     std::vector<SimpleBLE::Peripheral> peripherals;
+    
+    // Using (raw) string literals and json::parse
+    json config = json::parse(R"(
+      {
+        "macs": [
+            "C6421F92-B2F2-F0DE-CEB5-3C8B7D30D1E7",
+            "24440E4D-B08C-3582-F582-31E4D499CCEA"],
+        "servers": [
+            {
+                "host": "192.168.1.2",
+                "port": 8000
+            }
+        ]
+      }
+    )");
     
     std::array<int, 2> ports = {8000, 8001};
     
