@@ -16,6 +16,7 @@ MetaOSC connects to MetaMotion sensors via Bluetooth LE and streams sensor data 
   - Magnetometer: `/mag/{index} x y z`
   - Gyroscope: `/gyro/{index} x y z`
 - **Configurable**: JSON-based configuration for MAC address filtering and OSC server endpoints
+- **Graceful Shutdown**: Proper handling of SIGINT (Ctrl+C) with clean disconnection
 
 ## Requirements
 
