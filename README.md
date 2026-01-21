@@ -122,6 +122,12 @@ MetaOSC logs operational information to the console, including:
 
 ## Troubleshooting
 
+### macOS: App won't open (unsigned code)
+The application is unsigned, so macOS will quarantine files downloaded from GitHub Actions artifacts. To run the application, remove the quarantine attribute:
+```bash
+xattr -cr /path/to/MetaOSC.app
+```
+
 ### No sensors found
 - Ensure MetaMotion sensors are powered on and in range
 - Check Bluetooth is enabled on your system
