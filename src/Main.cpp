@@ -17,19 +17,20 @@ class MetaOSCThread : public juce::Thread {
     json config = json::parse(R"(
       {
         "macs": [
-            "C6421F92-B2F2-F0DE-CEB5-3C8B7D30D1E7",
-            "24440E4D-B08C-3582-F582-31E4D499CCEA"],
+        ],
         "servers": [
             {
-                "host": "192.168.1.2",
+                "host": "127.0.0.1",
                 "port": 8000
+            },
+            {
+                "host": "127.0.0.1",
+                "port": 8001
             }
         ]
       }
     )");
-    
-    std::array<int, 2> ports = {8000, 8001};
-    
+            
     OwnedArray<juce::OSCSender> oscSenders;
         
 public:
@@ -40,7 +41,30 @@ public:
             std::this_thread::sleep_for(std::chrono::milliseconds(2000));
             
             peripherals = bleInterface.getMetaMotionPeripherals();
+        
+            auto macs = config["macs"].get<std::vector<std::string>>();
             
+            // Filter peripherals to only include those in the macs vector
+        
+            if(!macs.empty())
+            {
+                std::vector<SimpleBLE::Peripheral> filteredPeripherals;
+                for (const auto& mac : macs)
+                {
+                    for (auto& p : peripherals)
+                    {
+                        if (p.identifier() == mac || p.address() == mac)
+                        {
+                            filteredPeripherals.push_back(p);
+                            break;
+                        }
+                    }
+                }
+                
+                // Replace peripherals with the filtered and sorted version
+                peripherals = filteredPeripherals;
+            }
+                                
             for(auto & p : peripherals)
             {
                 p.connect();
@@ -52,15 +76,16 @@ public:
                 controllers.add(controller);
             }
                             
-            for(auto & port : ports)
+            for(auto & server : config["servers"])
             {
                 
                 oscSenders.add(new OSCSender());
-                oscSenders.getLast()->connect("127.0.0.1", port);
-            }
                 
-            
-            
+                std::cout << server["host"].get<std::string>() << "\n";
+                std::cout << server["port"].get<int>() << "\n";
+                oscSenders.getLast()->connect(server["host"].get<std::string>(), server["port"].get<int>());
+            }
+                                        
             if(controllers.isEmpty()) {
                 juce::Logger::writeToLog("No MetaMotion controllers found!");
             }
