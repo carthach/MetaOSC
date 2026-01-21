@@ -2,6 +2,7 @@
 #include "MetaMotionController.h"
 #include <csignal>
 #include <atomic>
+#include <fstream>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
@@ -12,29 +13,10 @@ class MetaOSCThread : public juce::Thread {
     BleInterface bleInterface;
     OwnedArray<MetaMotionController> controllers;
     std::vector<SimpleBLE::Peripheral> peripherals;
-    
-    // Using (raw) string literals and json::parse
-    json config = json::parse(R"(
-      {
-        "macs": [
-        ],
-        "servers": [
-            {
-                "host": "127.0.0.1",
-                "port": 8000
-            },
-            {
-                "host": "127.0.0.1",
-                "port": 8001
-            }
-        ]
-      }
-    )");
-            
     OwnedArray<juce::OSCSender> oscSenders;
         
 public:
-    MetaOSCThread() : juce::Thread("MetaOSC Thread")
+    MetaOSCThread(const json& config) : juce::Thread("MetaOSC Thread")
     {
             bleInterface.setup();
             
@@ -80,9 +62,7 @@ public:
             {
                 
                 oscSenders.add(new OSCSender());
-                
-                std::cout << server["host"].get<std::string>() << "\n";
-                std::cout << server["port"].get<int>() << "\n";
+                                
                 oscSenders.getLast()->connect(server["host"].get<std::string>(), server["port"].get<int>());
             }
                                         
@@ -188,7 +168,66 @@ int main(int argc, char* argv[])
     
     juce::Logger::writeToLog("Starting MetaOSC application...");
     
-    MetaOSCThread metaOSCThread;
+    // Default configuration, no macs connects to all addresses
+    json config = json::parse(R"(
+      {
+        "macs": [
+        ],
+        "servers": [
+            {
+                "host": "127.0.0.1",
+                "port": 8000
+            },
+            {
+                "host": "127.0.0.1",
+                "port": 8001
+            }
+        ]
+      }
+    )");
+    
+    // Parse command line arguments
+    if (argc > 1)
+    {
+        juce::String configPath;
+        
+        // Look for --config or -c flag
+        for (int i = 1; i < argc; ++i)
+        {
+            juce::String arg(argv[i]);
+            if ((arg == "--config" || arg == "-c") && i + 1 < argc)
+            {
+                configPath = argv[i + 1];
+                break;
+            }
+        }
+        
+        // Load config file if path was provided
+        if (configPath.isNotEmpty())
+        {
+            try
+            {
+                std::ifstream configFile(configPath.toStdString());
+                if (configFile.is_open())
+                {
+                    config = json::parse(configFile);
+                    juce::Logger::writeToLog("Loaded configuration from: " + configPath);
+                }
+                else
+                {
+                    juce::Logger::writeToLog("Warning: Could not open config file: " + configPath);
+                    juce::Logger::writeToLog("Using default configuration.");
+                }
+            }
+            catch (const std::exception& e)
+            {
+                juce::Logger::writeToLog("Error parsing config file: " + juce::String(e.what()));
+                juce::Logger::writeToLog("Using default configuration.");
+            }
+        }
+    }
+    
+    MetaOSCThread metaOSCThread(config);
     
     if (!metaOSCThread.startThread()) {
         juce::Logger::writeToLog("Failed to start MetaOSC thread!");
@@ -210,6 +249,5 @@ int main(int argc, char* argv[])
     }
     
     juce::Logger::writeToLog("Application terminated gracefully.");
-    juce::ignoreUnused(argc, argv);
     return 0;
 }
