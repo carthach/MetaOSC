@@ -14,9 +14,10 @@ class MetaOSCThread : public juce::Thread {
     OwnedArray<MetaMotionController> controllers;
     std::vector<SimpleBLE::Peripheral> peripherals;
     OwnedArray<juce::OSCSender> oscSenders;
+    bool verboseLogging;
         
 public:
-    MetaOSCThread(const json& config) : juce::Thread("MetaOSC Thread")
+    MetaOSCThread(const json& config, bool verbose = true) : juce::Thread("MetaOSC Thread"), verboseLogging(verbose)
     {
             bleInterface.setup();
             
@@ -88,7 +89,8 @@ public:
                     for(auto & oscSender : oscSenders)
                         oscSender->send(oscMessage);
                     
-                    juce::Logger::writeToLog(String::formatted("/euler/%d %f %f %f %f", i, controller->outputEuler[0], controller->outputEuler[1], controller->outputEuler[2], controller->outputEuler[3]));
+                    if (verboseLogging)
+                        juce::Logger::writeToLog(String::formatted("/euler/%d %f %f %f %f", i, controller->outputEuler[0], controller->outputEuler[1], controller->outputEuler[2], controller->outputEuler[3]));
                 }
                 
                 {
@@ -168,6 +170,8 @@ int main(int argc, char* argv[])
     
     juce::Logger::writeToLog("Starting MetaOSC application...");
     
+    bool verboseLogging = true;
+    
     // Default configuration, no macs connects to all addresses
     json config = json::parse(R"(
       {
@@ -200,6 +204,10 @@ int main(int argc, char* argv[])
                 configPath = argv[i + 1];
                 break;
             }
+            else if (arg == "--quiet" || arg == "-q")
+            {
+                verboseLogging = false;
+            }
         }
         
         // Load config file if path was provided
@@ -227,7 +235,7 @@ int main(int argc, char* argv[])
         }
     }
     
-    MetaOSCThread metaOSCThread(config);
+    MetaOSCThread metaOSCThread(config, verboseLogging);
     
     if (!metaOSCThread.startThread()) {
         juce::Logger::writeToLog("Failed to start MetaOSC thread!");
