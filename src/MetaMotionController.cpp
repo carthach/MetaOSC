@@ -297,7 +297,7 @@ std::string HighLow2Uuid(const uint64_t high, const uint64_t low){
     uint8_t *u_l = (uint8_t *)&(low);
 
     char UUID[38];
-    std::sprintf(UUID, "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+    std::sprintf(UUID, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
             u_h[7], u_h[6], u_h[5], u_h[4], u_h[3], u_h[2], u_h[1], u_h[0],
             u_l[7], u_l[6], u_l[5], u_l[4], u_l[3], u_l[2], u_l[1], u_l[0]
             );
@@ -311,7 +311,7 @@ void MetaMotionController::read_gatt_char(void *context, const void *caller, con
     {
         auto readByteArray = wrapper->peripheral.read(HighLow2Uuid(characteristic->service_uuid_high, characteristic->service_uuid_low), HighLow2Uuid(characteristic->uuid_high, characteristic->uuid_low));
         
-        handler(caller, (uint8_t*)readByteArray.data(), readByteArray.length());
+        handler(caller, (uint8_t*)readByteArray.data(), readByteArray.size());
     }
 }
 
@@ -319,7 +319,7 @@ void MetaMotionController::write_gatt_char(void *context, const void *caller, Mb
                                           const MblMwGattChar *characteristic, const uint8_t *value, uint8_t length){
     
     if(auto wrapper = static_cast<MetaMotionController *>(context))
-        wrapper->peripheral.write_command(HighLow2Uuid(characteristic->service_uuid_high, characteristic->service_uuid_low), HighLow2Uuid(characteristic->uuid_high, characteristic->uuid_low), std::string((char*)value, int(length)));
+        wrapper->peripheral.write_command(HighLow2Uuid(characteristic->service_uuid_high, characteristic->service_uuid_low), HighLow2Uuid(characteristic->uuid_high, characteristic->uuid_low), SimpleBLE::ByteArray(value, static_cast<size_t>(length)));
 }
 
 void MetaMotionController::enable_char_notify(void *context, const void *caller, const MblMwGattChar *characteristic,
@@ -328,7 +328,7 @@ void MetaMotionController::enable_char_notify(void *context, const void *caller,
     if(auto wrapper = static_cast<MetaMotionController *>(context))
     {
         wrapper->peripheral.notify(HighLow2Uuid(characteristic->service_uuid_high, characteristic->service_uuid_low), HighLow2Uuid(characteristic->uuid_high, characteristic->uuid_low), [&,handler,caller](SimpleBLE::ByteArray payload) {
-            handler(caller,(uint8_t*)payload.data(),payload.length());
+            handler(caller,(uint8_t*)payload.data(),payload.size());
         });
         ready(caller, MBL_MW_STATUS_OK);
     }

@@ -19,7 +19,7 @@ FetchContent_Declare(
 FetchContent_Declare(
     SimpleBLE
     GIT_REPOSITORY https://github.com/simpleble/simpleble.git
-    GIT_TAG v0.6.1
+    GIT_TAG v0.12.1
 )
 
 # Make MetaWear SDK available
