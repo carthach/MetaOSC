@@ -11,7 +11,7 @@ FetchContent_MakeAvailable(json)
 # Fetch MetaWear SDK from GitHub
 FetchContent_Declare(
     MetaWearSDK
-    GIT_REPOSITORY https://github.com/mbientlab/MetaWear-SDK-Cpp.git
+    GIT_REPOSITORY https://github.com/carthach/MetaWear-SDK-Cpp.git
     GIT_TAG master
 )
 
@@ -35,7 +35,8 @@ add_subdirectory(${simpleble_SOURCE_DIR}/simpleble ${simpleble_BINARY_DIR})
 # This prevents build failures due to deprecated function warnings
 # -Wno-error=maybe-uninitialized is GCC-only; Clang uses -Wno-error=uninitialized
 target_compile_options(metawear PRIVATE
-    -Wno-error=deprecated-declarations
+    $<$<CXX_COMPILER_ID:MSVC>:/wd4996>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wno-error=deprecated-declarations>
     $<$<CXX_COMPILER_ID:GNU>:-Wno-error=maybe-uninitialized>
 )
 
@@ -94,8 +95,10 @@ target_compile_definitions(MetaOSC PRIVATE
     JUCE_USE_CURL=0
 )
 
-# Undefine LINUX macro to avoid conflict with SimpleBLE::OperatingSystem::LINUX enum
-target_compile_options(MetaOSC PRIVATE -ULINUX)
+# Undefine LINUX macro to avoid conflict with SimpleBLE::OperatingSystem::LINUX enum (GCC/Clang only)
+if(UNIX AND NOT APPLE)
+    target_compile_options(MetaOSC PRIVATE -ULINUX)
+endif()
 
 # Link JUCE modules
 target_link_libraries(MetaOSC
