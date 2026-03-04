@@ -33,7 +33,11 @@ add_subdirectory(${simpleble_SOURCE_DIR}/simpleble ${simpleble_BINARY_DIR})
 
 # Override MetaWear SDK compiler flags to remove -Werror (treat warnings as errors)
 # This prevents build failures due to deprecated function warnings
-target_compile_options(metawear PRIVATE -Wno-error=deprecated-declarations -Wno-error=maybe-uninitialized)
+# -Wno-error=maybe-uninitialized is GCC-only; Clang uses -Wno-error=uninitialized
+target_compile_options(metawear PRIVATE
+    -Wno-error=deprecated-declarations
+    $<$<CXX_COMPILER_ID:GNU>:-Wno-error=maybe-uninitialized>
+)
 
 # Add JUCE submodule
 add_subdirectory(JUCE)
