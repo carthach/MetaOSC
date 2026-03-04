@@ -33,7 +33,7 @@ add_subdirectory(${simpleble_SOURCE_DIR}/simpleble ${simpleble_BINARY_DIR})
 
 # Override MetaWear SDK compiler flags to remove -Werror (treat warnings as errors)
 # This prevents build failures due to deprecated function warnings
-target_compile_options(metawear PRIVATE -Wno-error=deprecated-declarations)
+target_compile_options(metawear PRIVATE -Wno-error=deprecated-declarations -Wno-error=maybe-uninitialized)
 
 # Add JUCE submodule
 add_subdirectory(JUCE)
@@ -47,9 +47,9 @@ juce_add_console_app(MetaOSC
 target_sources(MetaOSC
     PRIVATE
         src/Main.cpp
-        src/metamotionController.cpp
-        src/metamotionController.h
-        src/bleInterface.h
+        src/MetaMotionController.cpp
+        src/MetaMotionController.h
+        src/BleInterface.h
 )
 
 # Generate JuceHeader.h
@@ -76,6 +76,12 @@ elseif(WIN32)
         metawear
         simpleble
     )
+elseif(UNIX)
+    # Linux libraries
+    target_link_libraries(MetaOSC PRIVATE
+        metawear
+        simpleble
+    )
 endif()
 
 # Set compile definitions
@@ -83,6 +89,9 @@ target_compile_definitions(MetaOSC PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
 )
+
+# Undefine LINUX macro to avoid conflict with SimpleBLE::OperatingSystem::LINUX enum
+target_compile_options(MetaOSC PRIVATE -ULINUX)
 
 # Link JUCE modules
 target_link_libraries(MetaOSC
