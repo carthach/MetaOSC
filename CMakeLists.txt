@@ -12,7 +12,7 @@ FetchContent_MakeAvailable(json)
 FetchContent_Declare(
     MetaWearSDK
     GIT_REPOSITORY https://github.com/carthach/MetaWear-SDK-Cpp.git
-    GIT_TAG master
+    GIT_TAG 4385215
 )
 
 # Fetch SimpleBLE from GitHub
@@ -30,15 +30,6 @@ FetchContent_MakeAvailable(SimpleBLE)
 
 # Add SimpleBLE subdirectory
 add_subdirectory(${simpleble_SOURCE_DIR}/simpleble ${simpleble_BINARY_DIR})
-
-# Override MetaWear SDK compiler flags to remove -Werror (treat warnings as errors)
-# This prevents build failures due to deprecated function warnings
-# -Wno-error=maybe-uninitialized is GCC-only; Clang uses -Wno-error=uninitialized
-target_compile_options(metawear PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/wd4996>
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wno-error=deprecated-declarations>
-    $<$<CXX_COMPILER_ID:GNU>:-Wno-error=maybe-uninitialized>
-)
 
 # Add JUCE submodule
 add_subdirectory(JUCE)
