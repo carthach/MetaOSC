@@ -25,6 +25,18 @@ class MetaOSCThread : public juce::Thread {
     OwnedArray<juce::OSCSender>    oscSenders;
     bool verboseLogging;
 
+    // "<name>  uuid: <platform address>  mac: <hardware MAC>"
+    static juce::String describeDevice(MetaMotionController& c) {
+#if JUCE_MAC
+        const char* addressLabel = "uuid";
+#else
+        const char* addressLabel = "address";
+#endif
+        return juce::String(c.peripheral.identifier())
+             + "  " + addressLabel + ": " + juce::String(c.peripheral.address())
+             + "  mac: " + (c.macAddress.empty() ? juce::String("unknown") : juce::String(c.macAddress));
+    }
+
 public:
     MetaOSCThread(const json& config, bool verbose = true)
         : juce::Thread("MetaOSC Thread"), verboseLogging(verbose)
@@ -34,31 +46,117 @@ public:
         std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         peripherals = bleInterface.getMetaMotionPeripherals();
 
-        // Filter to only the MAC addresses listed in the config (if any).
-        auto macs = config["macs"].get<std::vector<std::string>>();
-        if (!macs.empty()) {
-            std::vector<SimpleBLE::Peripheral> filtered;
-            for (const auto& mac : macs) {
-                for (auto& p : peripherals) {
-                    if (p.identifier() == mac || p.address() == mac) {
-                        filtered.push_back(p);
-                        break;
-                    }
+        // Each "macs" entry selects one sensor, and its position in the list is
+        // the sensor's OSC index. An entry is either a single id string or an
+        // object of alternatives ({"mac": ..., "uuid": ...}). Ids are matched
+        // case-insensitively against the platform BLE address (a UUID on macOS,
+        // the MAC elsewhere) and against the hardware MAC read from the board.
+        std::vector<juce::StringArray> selectors;
+        if (config.contains("macs")) {
+            for (const auto& entry : config["macs"]) {
+                juce::StringArray ids;
+                if (entry.is_string()) {
+                    ids.add(entry.get<std::string>());
+                } else if (entry.is_object()) {
+                    for (const char* key : {"mac", "uuid"})
+                        if (entry.contains(key) && entry[key].is_string())
+                            ids.add(entry[key].get<std::string>());
                 }
+                ids.trim();
+                ids.removeEmptyStrings();
+                selectors.push_back(ids);
             }
-            peripherals = filtered;
+        }
+
+        // Narrow the scan results to the selected sensors where the platform
+        // address is enough to tell. On macOS an entry given only as a MAC can't
+        // be resolved before connecting, so keep every sensor as a candidate.
+        if (!selectors.empty()) {
+#if JUCE_MAC
+            const bool addressIsMac = false;
+#else
+            const bool addressIsMac = true;
+#endif
+            bool needHardwareMac = false;
+            std::vector<SimpleBLE::Peripheral> preselected;
+            for (const auto& ids : selectors) {
+                auto it = std::find_if(peripherals.begin(), peripherals.end(), [&](SimpleBLE::Peripheral& p) {
+                    return ids.contains(juce::String(p.address()), true);
+                });
+                if (it != peripherals.end())
+                    preselected.push_back(*it);
+                else if (!addressIsMac)
+                    needHardwareMac = true;
+            }
+            if (!needHardwareMac)
+                peripherals = preselected;
         }
 
         // --- Connect and initialise each sensor ---
+        // Controllers keep a reference into `peripherals`, so it must not be
+        // modified from here on.
+        OwnedArray<MetaMotionController> connected;
         for (auto& p : peripherals) {
-            p.connect();
+            try {
+                p.connect();
+            } catch (const std::exception& e) {
+                juce::Logger::writeToLog("Failed to connect to " + juce::String(p.address())
+                                         + ": " + juce::String(e.what()));
+                continue;
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(2000));
             auto* controller = new MetaMotionController(p);
             controller->setup();
-            controllers.add(controller);
+            if (!controller->waitForMac(5000))
+                juce::Logger::writeToLog("Could not read MAC from " + juce::String(p.address()));
+            connected.add(controller);
         }
 
-        if (controllers.isEmpty())
+        // --- Assign OSC indices ---
+        if (selectors.empty()) {
+            controllers.swapWith(connected);
+        } else {
+            // A sensor that wasn't found leaves an empty slot so the remaining
+            // sensors keep the index given by their position in "macs".
+            for (const auto& ids : selectors) {
+                int match = -1;
+                for (int i = 0; i < connected.size() && match < 0; ++i) {
+                    auto* c = connected[i];
+                    if (ids.contains(juce::String(c->peripheral.address()), true)
+                        || (!c->macAddress.empty() && ids.contains(juce::String(c->macAddress), true)))
+                        match = i;
+                }
+                controllers.add(match >= 0 ? connected.removeAndReturn(match) : nullptr);
+            }
+
+            // Release sensors that were only connected to look up their MAC.
+            for (auto* c : connected) {
+                juce::Logger::writeToLog("Skipping (not in config): " + describeDevice(*c));
+                if (c->isConnected) {
+                    c->disable_fusion_sampling(c->board);
+                    c->disconnectDevice(c->board);
+                }
+                try {
+                    c->peripheral.disconnect();
+                } catch (const std::exception&) {}
+            }
+            connected.clear();
+        }
+
+        // --- Report what ended up on each OSC index ---
+        int numConnected = 0;
+        juce::Logger::writeToLog("Connected devices:");
+        for (int i = 0; i < controllers.size(); ++i) {
+            if (auto* c = controllers[i]) {
+                ++numConnected;
+                juce::Logger::writeToLog("  [" + juce::String(i) + "] " + describeDevice(*c));
+            } else {
+                juce::Logger::writeToLog("  [" + juce::String(i) + "] NOT FOUND: "
+                                         + selectors[(size_t) i].joinIntoString(" / "));
+            }
+        }
+
+        if (numConnected == 0)
             juce::Logger::writeToLog("No MetaMotion controllers found!");
 
         // --- Open OSC connections ---

@@ -62,6 +62,7 @@ bool MetaMotionController::setup() {
         self->get_current_power_status(board);
         self->get_battery_percentage(board);
         self->get_ad_name(board);
+        self->get_mac_address(board);
         self->isConnected = true;
     });
 
@@ -233,6 +234,32 @@ void MetaMotionController::set_ad_name(MblMwMetaWearBoard* board) {
 void MetaMotionController::get_ad_name(MblMwMetaWearBoard* board) {
     if (!board) return;
     module_name = mbl_mw_metawearboard_get_model_name(board);
+}
+
+// ---------------------------------------------------------------------------
+// Hardware MAC address
+// ---------------------------------------------------------------------------
+
+void MetaMotionController::get_mac_address(MblMwMetaWearBoard* board) {
+    if (!board) return;
+
+    auto mac_signal = mbl_mw_settings_get_mac_data_signal(board);
+    if (!mac_signal) {  // firmware too old to report its MAC
+        macReady = true;
+        return;
+    }
+    mbl_mw_datasignal_subscribe(mac_signal, this, [](void* context, const MblMwData* data) {
+        auto* self = static_cast<MetaMotionController*>(context);
+        self->macAddress = static_cast<const char*>(data->value);
+        self->macReady = true;
+    });
+    mbl_mw_datasignal_read(mac_signal);
+}
+
+bool MetaMotionController::waitForMac(int timeoutMs) {
+    for (int waited = 0; !macReady && waited < timeoutMs; waited += 10)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    return macReady;
 }
 
 // ---------------------------------------------------------------------------

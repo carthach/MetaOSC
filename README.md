@@ -69,8 +69,28 @@ Create a JSON configuration file to customize behavior:
 ```
 
 **Configuration Options:**
-- `macs`: Array of MAC addresses to filter which sensors to connect to. Leave empty `[]` to connect to all available MetaMotion sensors.
+- `macs`: Ordered list of sensors to connect to. Leave empty `[]` to connect to all available MetaMotion sensors.
 - `servers`: Array of OSC server endpoints to send data to.
+
+**Selecting sensors and their order**
+
+The position of a sensor in `macs` is its OSC index (`/euler/0`, `/euler/1`, ...). If a listed sensor isn't found, its index is left unused rather than the others shifting down.
+
+Each entry is matched case-insensitively and can be:
+- the sensor's hardware MAC (`"AA:BB:CC:DD:EE:FF"`) — works on every OS
+- the macOS CoreBluetooth UUID (`"24440E4D-B08C-..."`) — only valid on the Mac that reported it
+- an object with both, so one file works everywhere:
+
+```json
+"macs": [
+  { "mac": "AA:BB:CC:DD:EE:FF", "uuid": "24440E4D-B08C-3582-F582-31E4D499CCEA" },
+  { "mac": "11:22:33:44:55:66", "uuid": "C6421F92-B2F2-F0DE-CEB5-3C8B7D30D1E7" }
+]
+```
+
+macOS doesn't expose MAC addresses, so the MAC is read from the sensor after connecting. If an entry on macOS has no matching `uuid`, MetaOSC briefly connects to every MetaMotion sensor in range to find it, then disconnects the ones not listed; including the `uuid` avoids that.
+
+To find the values, run with `"macs": []`: every connected sensor is listed at startup with its index, UUID/address and MAC.
 
 ### Running with Configuration
 

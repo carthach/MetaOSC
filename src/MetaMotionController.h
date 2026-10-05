@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <string>
@@ -65,6 +66,13 @@ public:
     int battery_level = 0;
     const char* module_name = nullptr;
 
+    // Hardware MAC ("AA:BB:CC:DD:EE:FF") read from the board itself. Unlike
+    // peripheral.address(), this is the same on every OS (macOS only exposes
+    // a per-host UUID). Valid once macReady is true; empty if unavailable.
+    std::string macAddress;
+    std::atomic<bool> macReady{false};
+    bool waitForMac(int timeoutMs);  // Blocks until macReady or timeout.
+
     // --- BLE peripheral and MetaWear board handle ---
     SimpleBLE::Peripheral& peripheral;
     MblMwMetaWearBoard* board = nullptr;
@@ -79,6 +87,7 @@ public:
     void disable_led(MblMwMetaWearBoard* board);
     void set_ad_name(MblMwMetaWearBoard* board);
     void get_ad_name(MblMwMetaWearBoard* board);
+    void get_mac_address(MblMwMetaWearBoard* board);
 
     // --- MetaWear GATT bridge callbacks (called by the MetaWear C SDK) ---
     static void read_gatt_char(void* context, const void* caller,
