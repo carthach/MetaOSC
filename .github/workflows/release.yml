@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag for the release (e.g. v1.0.0). Created from the selected branch if it does not exist.'
+        required: true
+      prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    # A failed optional platform (Windows) does not block the release
+    continue-on-error: ${{ matrix.optional }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            binary: MetaOSC
+            optional: false
+          - name: Linux
+            os: ubuntu-latest
+            binary: MetaOSC
+            optional: false
+          - name: Windows
+            os: windows-latest
+            binary: MetaOSC.exe
+            optional: true
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libbluetooth-dev \
+          libdbus-1-dev \
+          libcurl4-openssl-dev  \
+          libfreetype-dev libfontconfig1-dev \
+          libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+          libwebkit2gtk-4.1-dev
+
+    - name: Set up CMake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.22'
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: |
+        cmake --build build --config Release
+
+    # Archive before uploading so the executable bit survives
+    - name: Package
+      shell: bash
+      run: |
+        mkdir -p dist/MetaOSC
+        cp "build/MetaOSC_artefacts/Release/${{ matrix.binary }}" README.md dist/MetaOSC/
+        cd dist
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          7z a "MetaOSC-${{ matrix.name }}.zip" MetaOSC
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          zip -r "MetaOSC-${{ matrix.name }}.zip" MetaOSC
+        else
+          tar -czf "MetaOSC-${{ matrix.name }}.tar.gz" MetaOSC
+        fi
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.name }}
+        path: |
+          dist/*.zip
+          dist/*.tar.gz
+        if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: release-*
+        path: dist
+        merge-multiple: true
+
+    - name: Create release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ inputs.tag || github.ref_name }}
+        PRERELEASE: ${{ inputs.prerelease && '--prerelease' || '' }}
+      run: |
+        ls -l dist
+        gh release create "$TAG" dist/* \
+          --repo "${{ github.repository }}" \
+          --target "${{ github.sha }}" \
+          --title "MetaOSC $TAG" \
+          --generate-notes \
+          $PRERELEASE

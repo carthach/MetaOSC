@@ -35,6 +35,19 @@ cmake ..
 cmake --build .
 ```
 
+## Releases
+
+Prebuilt binaries are on the [Releases page](https://github.com/carthach/MetaOSC/releases).
+
+To publish a new one, either push a version tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+or run the **Release** workflow manually from the Actions tab and enter the tag there. A release is created with the macOS and Linux builds attached; the Windows build is attached only if it succeeds.
+
 ## Configuration
 
 ### Default Configuration
